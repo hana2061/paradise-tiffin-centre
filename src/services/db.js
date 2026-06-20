@@ -871,34 +871,17 @@ export const dbService = {
         }
       }
     } else {
-      const snapshot = await getDocs(collection(firebaseDb, "students"));
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.fcmTokens && Array.isArray(data.fcmTokens)) {
-          allTokens.push(...data.fcmTokens);
-        }
-      });
-      const serverKey = import.meta.env.VITE_FIREBASE_FCM_SERVER_KEY || "";
-      if (serverKey && allTokens.length > 0) {
-        try {
-          await fetch("https://fcm.googleapis.com/fcm/send", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `key=${serverKey}`
-            },
-            body: JSON.stringify({
-              registration_ids: allTokens,
-              notification: {
-                title: "Paradise Tiffin Centre",
-                body: `Your tiffin is ready! 🍱 Today's menu at Paradise Tiffin Centre: ${menuText}`,
-                icon: "/favicon.ico"
-              }
-            })
-          });
-        } catch (err) {
-          console.error("FCM dispatch fetch failed:", err);
-        }
+      try {
+        const response = await fetch("/api/send-notification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ menuText })
+        });
+        const result = await response.json();
+        return { success: true, count: result.count || 0 };
+      } catch (err) {
+        console.error("Backend notification dispatch failed:", err);
+        return { success: false, count: 0 };
       }
     }
     return { success: true, count: allTokens.length };
