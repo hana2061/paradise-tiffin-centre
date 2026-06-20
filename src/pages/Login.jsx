@@ -175,37 +175,6 @@ export default function Login() {
         )}
       </div>
 
-      {/* Demo Credentials Drawer (For testing purposes) */}
-      <div className="card card-highlight login-card login-demo">
-        <div className="flex items-center gap-2 mb-3 text-xs font-extrabold uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>
-          <Coffee size={14} style={{ color: "var(--accent)" }} />
-          <span>Quick Demo Access</span>
-        </div>
-        <p className="text-xs mb-3" style={{ color: "var(--text-muted)", lineHeight: "1.4" }}>
-          You can test the application instantly with the pre-seeded credentials:
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => fillCredentials("owner")}
-            className="btn btn-outline text-xs py-2 px-3 flex-1 font-semibold"
-            style={{ fontSize: "12px", padding: "10px 14px" }}
-          >
-            🔑 Fill Owner
-          </button>
-          <button
-            type="button"
-            onClick={() => fillCredentials("student")}
-            className="btn btn-outline text-xs py-2 px-3 flex-1 font-semibold"
-            style={{ fontSize: "12px", padding: "10px 14px" }}
-          >
-            🎓 Fill Student
-          </button>
-        </div>
-        <div className="mt-2 text-[10px]" style={{ color: "var(--text-muted)", textAlign: "center" }}>
-          (Owner email is fixed: <strong>owner@paradise.com</strong>)
-        </div>
-      </div>
     </div>
   );
 }
