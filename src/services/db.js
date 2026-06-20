@@ -62,53 +62,7 @@ function mockSubscribe(readFn, callback, intervalMs = 2500) {
 // ==========================================
 // SEED DATA FOR MOCK MODE
 // ==========================================
-const DEFAULT_MENU = [
-  {
-    id: "menu-1",
-    name: "Homestyle Breakfast (Poha & Tea)",
-    description: "Light flaked rice cooked with peanuts, curry leaves, onions, and turmeric. Served with hot cardamom chai.",
-    price: 50,
-    mealType: "Breakfast",
-    available: true,
-    dayOfWeek: "Daily"
-  },
-  {
-    id: "menu-2",
-    name: "South Indian Idli-Vada Combo",
-    description: "2 soft steamed rice idlis and 1 crispy lentil medu vada. Served with sambar and coconut chutney.",
-    price: 60,
-    mealType: "Breakfast",
-    available: true,
-    dayOfWeek: "Daily"
-  },
-  {
-    id: "menu-3",
-    name: "Deluxe Veg Lunch Tiffin",
-    description: "3 Butter Rotis, Steamed Basmati Rice, Creamy Dal Tadka, Paneer Butter Masala, Pickle and fresh Salad.",
-    price: 110,
-    mealType: "Lunch",
-    available: true,
-    dayOfWeek: "Daily"
-  },
-  {
-    id: "menu-4",
-    name: "Special Punjabi Lunch Thali",
-    description: "2 Laccha Parathas, aromatic Jeera Rice, rich Dal Makhani, Shahi Paneer, and refreshing Boondi Raita.",
-    price: 130,
-    mealType: "Lunch",
-    available: true,
-    dayOfWeek: "Daily"
-  },
-  {
-    id: "menu-5",
-    name: "Classic Dinner Tiffin",
-    description: "2 Wheat Chapatis, Steamed Rice, Yellow Dal Fry, Seasonal Dry Vegetable (Aloo Gobi/Bhindi), and Salad.",
-    price: 85,
-    mealType: "Dinner",
-    available: true,
-    dayOfWeek: "Daily"
-  }
-];
+
 
 const DEFAULT_USERS = {
   "owner-id": {
