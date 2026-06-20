@@ -1,14 +1,12 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import Logo from "../components/Logo";
-import { LogIn, UserPlus, ShieldAlert, Coffee } from "lucide-react";
+import { LogIn, ShieldAlert } from "lucide-react";
 
 export default function Login() {
-  const { login, register } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,19 +21,10 @@ export default function Login() {
       return;
     }
 
-    if (isRegister && !name) {
-      setError("Please enter your name.");
-      setLoading(false);
-      return;
-    }
-
     try {
-      if (isRegister) {
-        await register(email.trim(), password, name.trim());
-      } else {
-        await login(email.trim(), password);
+      await login(email.trim(), password);
       }
-    } catch (err) {
+     catch (err) {
       setError(err.message || "An error occurred during authentication.");
     } finally {
       setLoading(false);
@@ -67,38 +56,9 @@ export default function Login() {
 
       {/* Main Auth Card */}
       <div className="card login-card">
-        {/* Switcher Tab */}
-        <div className="flex mb-6 border-b" style={{ borderColor: "var(--border-color)" }}>
-          <button
-            type="button"
-            onClick={() => { setIsRegister(false); setError(""); }}
-            className="flex-1 pb-3 text-center font-bold text-sm uppercase tracking-wider"
-            style={{
-              color: !isRegister ? "var(--text-primary)" : "var(--text-muted)",
-              borderBottom: !isRegister ? "3px solid var(--accent)" : "none",
-              background: "none",
-              border: "none",
-              cursor: "pointer"
-            }}
-          >
-            Sign In
-          </button>
-          <button
-            type="button"
-            onClick={() => { setIsRegister(true); setError(""); }}
-            className="flex-1 pb-3 text-center font-bold text-sm uppercase tracking-wider"
-            style={{
-              color: isRegister ? "var(--text-primary)" : "var(--text-muted)",
-              borderBottom: isRegister ? "3px solid var(--accent)" : "none",
-              background: "none",
-              border: "none",
-              cursor: "pointer"
-            }}
-          >
-            Register
-          </button>
-        </div>
-
+        <h2 className="text-center font-bold text-lg mb-6" style={{ color: "var(--text-primary)" }}>
+          Sign In
+        </h2>
         {error && (
           <div
             className="flex items-center gap-2 p-3 mb-4 rounded-lg text-sm"
@@ -110,20 +70,6 @@ export default function Login() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {isRegister && (
-            <div className="form-group">
-              <label className="form-label" htmlFor="name-input">Full Name</label>
-              <input
-                id="name-input"
-                type="text"
-                className="form-input"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-          )}
 
           <div className="form-group">
             <label className="form-label" htmlFor="email-input">Email Address</label>
@@ -154,25 +100,16 @@ export default function Login() {
           <button type="submit" className="btn mt-2" disabled={loading}>
             {loading ? (
               <span className="animate-pulse">Loading...</span>
-            ) : isRegister ? (
+            ) : (
               <>
                 <UserPlus size={18} />
                 <span>Create Student Account</span>
-              </>
-            ) : (
-              <>
-                <LogIn size={18} />
-                <span>Sign In to Tiffin</span>
               </>
             )}
           </button>
         </form>
 
-        {isRegister && (
-          <div className="mt-4 text-xs text-center" style={{ color: "var(--text-muted)" }}>
-            <span style={{ color: "var(--accent)", fontWeight: "bold" }}>🎉 Welcome:</span> Create your student account here and verify your tiffin subscription details with the owner.
-          </div>
-        )}
+        
       </div>
 
     </div>
