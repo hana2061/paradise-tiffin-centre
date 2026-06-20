@@ -103,7 +103,7 @@ export default function Login() {
             ) : (
               <>
                 <UserPlus size={18} />
-                <span>Create Student Account</span>
+                <span>Sign In</span>
               </>
             )}
           </button>
