@@ -52,6 +52,10 @@ export default function OwnerDashboard() {
   // Student Detail & Payments States
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [todayTiffinLog, setTodayTiffinLog] = useState(null);
+  const [tiffinHistory, setTiffinHistory] = useState([]);
+  const [allTodayLogs, setAllTodayLogs] = useState([]);
+  const [historyMonth, setHistoryMonth] = useState(new Date().toISOString().slice(0, 7)); // "2026-06"
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0]);
@@ -131,6 +135,10 @@ export default function OwnerDashboard() {
     }
 
     if (activeTab === "students") {
+      fetchAllTodayLogs();
+    }
+
+    if (activeTab === "students") {
       unsubscribes.push(
         dbService.subscribeToHolidays(
           (holidayList) => {
@@ -182,10 +190,20 @@ export default function OwnerDashboard() {
   useEffect(() => {
     if (selectedStudentId) {
       fetchStudentDetails(selectedStudentId);
+      fetchTodayTiffinLog(selectedStudentId);
+      fetchTiffinHistory(selectedStudentId, historyMonth);
     } else {
       setSelectedStudent(null);
+      setTodayTiffinLog(null);
+      setTiffinHistory([]);
     }
   }, [selectedStudentId]);
+
+  useEffect(() => {
+    if (selectedStudentId) {
+      fetchTiffinHistory(selectedStudentId, historyMonth);
+    }
+  }, [historyMonth]);
 
   // Keep selected student in sync with live student list
   useEffect(() => {
@@ -207,6 +225,52 @@ export default function OwnerDashboard() {
     } catch (err) {
       setError("Failed to fetch student details.");
       console.error(err);
+    }
+  };
+
+  const fetchTodayTiffinLog = async (studentId) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const logs = await dbService.getTiffinLogForDate(todayStr);
+    const match = logs.find(l => l.studentId === studentId);
+    setTodayTiffinLog(match || null);
+  };
+  const fetchAllTodayLogs = async () => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    const logs = await dbService.getTiffinLogForDate(todayStr);
+    setAllTodayLogs(logs);
+  };
+
+  const handleMarkOwnerSentInList = async (studentId, slot, status) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    try {
+      await dbService.updateTiffinLogEntry(studentId, todayStr, slot, "owner", status);
+      await fetchAllTodayLogs();
+    } catch (err) {
+      setError("Failed to update tiffin status.");
+    }
+  };
+
+  const handleMarkOwnerSent = async (slot, status) => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    setActionLoading(true);
+    try {
+      await dbService.updateTiffinLogEntry(selectedStudentId, todayStr, slot, "owner", status);
+      await fetchTodayTiffinLog(selectedStudentId);
+      setSuccess(`Marked ${slot} as ${status === "sent" ? "Sent" : "Not Sent"}`);
+      setTimeout(() => setSuccess(""), 2500);
+    } catch (err) {
+      setError("Failed to update tiffin status.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const fetchTiffinHistory = async (studentId, monthStr) => {
+    try {
+      const history = await dbService.getTiffinHistoryForStudent(studentId, monthStr);
+      setTiffinHistory(history);
+    } catch (err) {
+      console.error("Failed to fetch tiffin history:", err);
     }
   };
 
@@ -698,6 +762,126 @@ export default function OwnerDashboard() {
                     </div>
                   )}
 
+                  
+                  {/* Tiffin History Calendar */}
+                  <div className="card flex flex-col gap-3">
+                    <div className="flex justify-between items-center border-b pb-2 mb-1" style={{ borderColor: "var(--border-color)" }}>
+                      <h4 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>
+                        📅 Tiffin History
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const [y, m] = historyMonth.split("-").map(Number);
+                            const prev = new Date(y, m - 2, 1);
+                            setHistoryMonth(prev.toISOString().slice(0, 7));
+                          }}
+                          className="btn btn-outline py-1 px-2 text-xs"
+                          style={{ cursor: "pointer" }}
+                        >
+                          ←
+                        </button>
+                        <span className="text-xs font-bold" style={{ color: "var(--text-primary)", minWidth: "90px", textAlign: "center" }}>
+                          {new Date(historyMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const [y, m] = historyMonth.split("-").map(Number);
+                            const next = new Date(y, m, 1);
+                            setHistoryMonth(next.toISOString().slice(0, 7));
+                          }}
+                          className="btn btn-outline py-1 px-2 text-xs"
+                          style={{ cursor: "pointer" }}
+                        >
+                          →
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex gap-3 flex-wrap text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      <span>🟢 Owner Sent</span>
+                      <span>🔴 Owner Not Sent</span>
+                      <span>✅ Student Received</span>
+                      <span>🚫 Student Day Off</span>
+                    </div>
+
+                    {/* Calendar Grid */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                        <div key={d} className="text-center text-[9px] font-bold" style={{ color: "var(--text-muted)" }}>
+                          {d}
+                        </div>
+                      ))}
+                      {(() => {
+                        const [year, month] = historyMonth.split("-").map(Number);
+                        const firstDay = new Date(year, month - 1, 1).getDay();
+                        const daysInMonth = new Date(year, month, 0).getDate();
+                        const cells = [];
+
+                        for (let i = 0; i < firstDay; i++) {
+                          cells.push(<div key={`empty-${i}`} />);
+                        }
+
+                        for (let day = 1; day <= daysInMonth; day++) {
+                          const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                          const entry = tiffinHistory.find((h) => h.date === dateStr);
+
+                          const ownerM = entry?.morningOwnerStatus;
+                          const ownerE = entry?.eveningOwnerStatus;
+                          const studM = entry?.morningStudentStatus;
+                          const studE = entry?.eveningStudentStatus;
+
+                          const hasData = ownerM || ownerE || studM || studE;
+
+                          cells.push(
+                            <div
+                              key={dateStr}
+                              className="flex flex-col items-center justify-center"
+                              style={{
+                                aspectRatio: "1",
+                                borderRadius: "6px",
+                                backgroundColor: hasData ? "var(--card-bg, #F5E6D3)" : "transparent",
+                                border: "1px solid var(--border-color)",
+                                fontSize: "9px",
+                                padding: "2px"
+                              }}
+                            >
+                              <span style={{ fontWeight: "700", color: "var(--text-primary)" }}>{day}</span>
+                              {hasData && (
+                                <div style={{ display: "flex", gap: "1px", fontSize: "7px", lineHeight: "1" }}>
+                                  <span>{ownerM === "sent" ? "🟢" : ownerM === "not_sent" ? "🔴" : ""}{studM === "received" ? "✅" : studM === "dayoff" ? "🚫" : ""}</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+                        return cells;
+                      })()}
+                    </div>
+
+                    {/* Simple List Backup View */}
+                    <div className="mt-2" style={{ maxHeight: "180px", overflowY: "auto" }}>
+                      {tiffinHistory.length === 0 ? (
+                        <p className="text-xs text-center py-3" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                          No tiffin records for this month yet.
+                        </p>
+                      ) : (
+                        [...tiffinHistory].sort((a, b) => a.date.localeCompare(b.date)).map((entry) => (
+                          <div key={entry.date} className="flex justify-between items-center text-[10px] border-b py-1.5" style={{ borderColor: "var(--border-color)" }}>
+                            <span className="font-bold" style={{ color: "var(--text-primary)" }}>{entry.date}</span>
+                            <span style={{ color: "var(--text-muted)" }}>
+                              {entry.morningOwnerStatus && `🌅 ${entry.morningOwnerStatus === "sent" ? "Sent" : "Not Sent"}/${entry.morningStudentStatus === "received" ? "Received" : entry.morningStudentStatus === "dayoff" ? "Day Off" : "—"}`}
+                              {entry.eveningOwnerStatus && `  🌆 ${entry.eveningOwnerStatus === "sent" ? "Sent" : "Not Sent"}/${entry.eveningStudentStatus === "received" ? "Received" : entry.eveningStudentStatus === "dayoff" ? "Day Off" : "—"}`}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
                   {/* Payment Form Panel */}
                   {showPaymentForm && (
                     <div className="card card-highlight animate-fade-in">
@@ -950,6 +1134,70 @@ export default function OwnerDashboard() {
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                  </div>
+
+                  {/* Today's Tiffin Dispatch — Quick List */}
+                  <div className="card flex flex-col gap-2">
+                    <h4 className="font-bold text-xs uppercase tracking-widest border-b pb-2 mb-1" style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}>
+                      🍱 Today's Tiffin — Mark Sent
+                    </h4>
+                    <div className="flex flex-col gap-2" style={{ maxHeight: "300px", overflowY: "auto" }}>
+                      {students
+                        .filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((stud) => {
+                          const sid = stud.uid || stud.id;
+                          const log = allTodayLogs.find(l => l.studentId === sid);
+                          const plan = stud.plan || "";
+                          const isTwice = plan.includes("Twice");
+                          const slot = isTwice ? null : (plan.includes("Evening") ? "Evening" : "Morning");
+
+                          const renderToggle = (slotName, statusField) => (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] font-bold" style={{ color: "var(--text-muted)" }}>
+                                {slotName === "Morning" ? "🌅" : "🌆"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkOwnerSentInList(sid, slotName, "sent")}
+                                className="btn py-1 px-2 text-[10px] font-bold"
+                                style={{
+                                  cursor: "pointer",
+                                  opacity: log?.[statusField] === "sent" ? 1 : 0.35
+                                }}
+                              >
+                                ✅
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkOwnerSentInList(sid, slotName, "not_sent")}
+                                className="btn btn-danger py-1 px-2 text-[10px] font-bold"
+                                style={{
+                                  cursor: "pointer",
+                                  opacity: log?.[statusField] === "not_sent" ? 1 : 0.35
+                                }}
+                              >
+                                ❌
+                              </button>
+                            </div>
+                          );
+
+                          return (
+                            <div key={sid} className="flex justify-between items-center py-1.5 border-b" style={{ borderColor: "var(--border-color)" }}>
+                              <span className="font-bold text-xs" style={{ color: "var(--text-primary)" }}>{stud.name}</span>
+                              <div className="flex gap-3">
+                                {isTwice ? (
+                                  <>
+                                    {renderToggle("Morning", "morningOwnerStatus")}
+                                    {renderToggle("Evening", "eveningOwnerStatus")}
+                                  </>
+                                ) : (
+                                  renderToggle(slot, slot === "Morning" ? "morningOwnerStatus" : "eveningOwnerStatus")
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
 
                   {/* Student Rows List */}

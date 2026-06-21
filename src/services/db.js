@@ -1230,5 +1230,74 @@ export const dbService = {
       (snapshot) => callback(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))),
       onError
     );
+  },
+  // ==========================================
+  // TIFFIN LOG (Owner Sent/Not Sent + Student Received/Day Off, with history)
+  // ==========================================
+
+  async updateTiffinLogEntry(studentId, dateStr, slot, who, status) {
+    await delay();
+    // who = "owner" or "student"
+    // slot = "Morning" or "Evening"
+    // status = "sent"/"not_sent" (owner) or "received"/"dayoff" (student)
+    const docId = `${studentId}_${dateStr}`;
+    const fieldKey = `${slot.toLowerCase()}${who === "owner" ? "OwnerStatus" : "StudentStatus"}`;
+
+    if (useMock) {
+      const logs = JSON.parse(localStorage.getItem("pfc_tiffin_log") || "{}");
+      logs[docId] = {
+        ...(logs[docId] || {}),
+        studentId,
+        date: dateStr,
+        [fieldKey]: status,
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem("pfc_tiffin_log", JSON.stringify(logs));
+      return logs[docId];
+    } else {
+      const logRef = doc(firebaseDb, "tiffinLog", docId);
+      const logSnap = await getDoc(logRef);
+      const updateData = {
+        studentId,
+        date: dateStr,
+        [fieldKey]: status,
+        updatedAt: new Date().toISOString()
+      };
+      if (logSnap.exists()) {
+        await updateDoc(logRef, updateData);
+      } else {
+        await setDoc(logRef, updateData);
+      }
+      return updateData;
+    }
+  },
+
+  async getTiffinLogForDate(dateStr) {
+    await delay();
+    if (useMock) {
+      const logs = JSON.parse(localStorage.getItem("pfc_tiffin_log") || "{}");
+      return Object.values(logs).filter(l => l.date === dateStr);
+    } else {
+      const q = query(collection(firebaseDb, "tiffinLog"), where("date", "==", dateStr));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => d.data());
+    }
+  },
+
+  async getTiffinHistoryForStudent(studentId, monthStr) {
+    // monthStr format: "2026-06" — fetches all entries for that student in that month
+    await delay();
+    if (useMock) {
+      const logs = JSON.parse(localStorage.getItem("pfc_tiffin_log") || "{}");
+      return Object.values(logs).filter(
+        l => l.studentId === studentId && l.date && l.date.startsWith(monthStr)
+      );
+    } else {
+      const q = query(collection(firebaseDb, "tiffinLog"), where("studentId", "==", studentId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map(d => d.data())
+        .filter(l => l.date && l.date.startsWith(monthStr));
+    }
   }
 };
