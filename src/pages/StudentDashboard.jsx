@@ -121,7 +121,7 @@ export default function StudentDashboard() {
   };
   const FetchTiffinHistory = async (monthStr) => {
     try {
-      const history = await dbService.getTiffinHistory(currentUser.uid, monthStr);
+      const history = await dbService.getTiffinHistoryForStudent(currentUser.uid, monthStr);
       setTiffinHistory(history);
     } catch (err) {
       console.error("Failed to fetch tiffin history:", err);
