@@ -1237,12 +1237,129 @@ export const dbService = {
 
   async updateTiffinLogEntry(studentId, dateStr, slot, who, status) {
     await delay();
-    // who = "owner" or "student"
-    // slot = "Morning" or "Evening"
-    // status = "sent"/"not_sent" (owner) or "received"/"dayoff" (student)
     const docId = `${studentId}_${dateStr}`;
     const fieldKey = `${slot.toLowerCase()}${who === "owner" ? "OwnerStatus" : "StudentStatus"}`;
 
+    // Helper to add days to a date string
+    const addDays = (ds, days) => {
+      const d = new Date(ds);
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split("T")[0];
+    };
+
+    // Fetch existing log entry (to know previous owner status, avoid double extension)
+    let existingLog = null;
+    if (useMock) {
+      const logs = JSON.parse(localStorage.getItem("pfc_tiffin_log") || "{}");
+      existingLog = logs[docId] || null;
+    } else {
+      const logRef = doc(firebaseDb, "tiffinLog", docId);
+      const logSnap = await getDoc(logRef);
+      existingLog = logSnap.exists() ? logSnap.data() : null;
+    }
+
+    const ownerFieldKey = `${slot.toLowerCase()}OwnerStatus`;
+    const previousOwnerStatus = existingLog?.[ownerFieldKey] || null;
+
+    // Only handle due-date extension logic when the OWNER marks a slot
+    let extensionDelta = 0; // +1 = apply extension, -1 = reverse extension
+    if (who === "owner") {
+      const wasNotSent = previousOwnerStatus === "not_sent";
+      const isNowNotSent = status === "not_sent";
+
+      if (!wasNotSent && isNowNotSent) {
+        extensionDelta = 1; // newly marked Not Sent → extend
+      } else if (wasNotSent && !isNowNotSent) {
+        extensionDelta = -1; // was Not Sent, now changed → reverse extension
+      }
+      // sent -> sent, or not_sent -> not_sent: no change needed
+    }
+
+    // Apply due-date extension/reversal to the student, if needed
+    if (extensionDelta !== 0) {
+      // Check for an active holiday covering this slot/date to avoid double-extension
+      let skipDueToHoliday = false;
+      try {
+        let holidays = [];
+        if (useMock) {
+          holidays = JSON.parse(localStorage.getItem("pfc_holidays") || "[]");
+        } else {
+          const snap = await getDocs(collection(firebaseDb, "holidays"));
+          holidays = snap.docs.map(d => d.data());
+        }
+        skipDueToHoliday = holidays.some(h => {
+          if (h.date !== dateStr) return false;
+          if (h.type === "Full Day Off") return true;
+          if (h.type === "Morning Off" && slot === "Morning") return true;
+          if (h.type === "Evening Off" && slot === "Evening") return true;
+          return false;
+        });
+      } catch (err) {
+        console.warn("Holiday check failed, proceeding without skip:", err);
+      }
+
+      if (!skipDueToHoliday) {
+        // Determine slot extension amount based on plan
+        let student = null;
+        if (useMock) {
+          const students = JSON.parse(localStorage.getItem("pfc_students") || "[]");
+          student = students.find(s => s.uid === studentId || s.id === studentId);
+        } else {
+          const studentSnap = await getDoc(doc(firebaseDb, "students", studentId));
+          student = studentSnap.exists() ? studentSnap.data() : null;
+        }
+
+        if (student) {
+          const plan = student.plan || "";
+          const isTwice = plan.includes("Twice");
+          const slotExtension = isTwice ? 0.5 : 1.0;
+          const totalExtension = slotExtension * extensionDelta;
+
+          const prevFractional = student.fractionalDays || 0;
+          const prevDueDate = student.nextDueDate;
+
+          let newFractionalTotal = prevFractional + totalExtension;
+          let newDueDate = prevDueDate;
+
+          if (totalExtension > 0) {
+            const daysToAdd = Math.floor(newFractionalTotal);
+            newFractionalTotal -= daysToAdd;
+            if (daysToAdd > 0) newDueDate = addDays(prevDueDate, daysToAdd);
+          } else {
+            // Reversing: subtract a day if fractional goes negative
+            if (newFractionalTotal < 0) {
+              newFractionalTotal += 1;
+              newDueDate = addDays(prevDueDate, -1);
+            }
+          }
+
+          const updateFields = { nextDueDate: newDueDate, fractionalDays: newFractionalTotal };
+
+          if (useMock) {
+            const students = JSON.parse(localStorage.getItem("pfc_students") || "[]");
+            const idx = students.findIndex(s => s.uid === studentId || s.id === studentId);
+            if (idx !== -1) {
+              students[idx] = { ...students[idx], ...updateFields };
+              localStorage.setItem("pfc_students", JSON.stringify(students));
+            }
+            const users = JSON.parse(localStorage.getItem("pfc_users") || "{}");
+            if (users[studentId]) {
+              users[studentId] = { ...users[studentId], ...updateFields };
+              localStorage.setItem("pfc_users", JSON.stringify(users));
+            }
+          } else {
+            await updateDoc(doc(firebaseDb, "students", studentId), updateFields);
+            const userRef = doc(firebaseDb, "users", studentId);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              await updateDoc(userRef, updateFields);
+            }
+          }
+        }
+      }
+    }
+
+    // Save the tiffin log entry itself
     if (useMock) {
       const logs = JSON.parse(localStorage.getItem("pfc_tiffin_log") || "{}");
       logs[docId] = {
