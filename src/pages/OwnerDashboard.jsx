@@ -774,8 +774,9 @@ export default function OwnerDashboard() {
                           type="button"
                           onClick={() => {
                             const [y, m] = historyMonth.split("-").map(Number);
-                            const prev = new Date(y, m - 2, 1);
-                            setHistoryMonth(prev.toISOString().slice(0, 7));
+                            let newY = y, newM = m - 1;
+                            if (newM < 1) { newM = 12; newY -= 1; }
+                            setHistoryMonth(`${newY}-${String(newM).padStart(2, "0")}`);
                           }}
                           className="btn btn-outline py-1 px-2 text-xs"
                           style={{ cursor: "pointer" }}
@@ -789,8 +790,9 @@ export default function OwnerDashboard() {
                           type="button"
                           onClick={() => {
                             const [y, m] = historyMonth.split("-").map(Number);
-                            const next = new Date(y, m, 1);
-                            setHistoryMonth(next.toISOString().slice(0, 7));
+                            let newY = y, newM = m + 1;
+                            if (newM > 12) { newM = 1; newY += 1; }
+                            setHistoryMonth(`${newY}-${String(newM).padStart(2, "0")}`);
                           }}
                           className="btn btn-outline py-1 px-2 text-xs"
                           style={{ cursor: "pointer" }}
