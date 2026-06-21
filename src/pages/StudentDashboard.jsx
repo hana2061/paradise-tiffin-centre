@@ -22,6 +22,8 @@ export default function StudentDashboard() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [tiffinHistory, setTiffinHistory] = useState([]);
+  const [historyMonth, setHistoryMonth] = useState(new Date().toISOString().slice(0, 7));
 
   const setupNotifications = async () => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -84,6 +86,10 @@ export default function StudentDashboard() {
       setupNotifications();
     }
 
+    if (activeTab === "history") {
+      FetchTiffinHistory(historyMonth);
+    }
+
     // Refresh when mobile browser returns from background
     const onVisible = () => {
       if (document.visibilityState === "visible") {
@@ -98,6 +104,12 @@ export default function StudentDashboard() {
     };
   }, [activeTab, currentUser?.uid]);
 
+  useEffect(() => {
+    if (activeTab === "history" && currentUser?.uid) {
+      FetchTiffinHistory(historyMonth);
+    }
+  }, [historyMonth]);
+
   const getDaysRemaining = (dueDateStr) => {
     if (!dueDateStr) return 0;
     const today = new Date();
@@ -107,6 +119,14 @@ export default function StudentDashboard() {
     const diffTime = dueDate.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
+  const FetchTiffinHistory = async (monthStr) => {
+    try {
+      const history = await dbService.getTiffinHistory(currentUser.uid, monthStr);
+      setTiffinHistory(history);
+    } catch (err) {
+      console.error("Failed to fetch tiffin history:", err);
+    }
+  };
 
   const handleSlotSelect = async (slot, status) => {
     setActionLoading(true);
@@ -114,6 +134,12 @@ export default function StudentDashboard() {
     setSuccess("");
     try {
       await dbService.updateTodaySlotStatus(currentUser.uid, slot, status);
+
+      // Also save to tiffinLog history collection
+      const todayStr = new Date().toISOString().split("T")[0];
+      const historyStatus = status === "Received" ? "received" : "dayoff";
+      await dbService.updateTiffinLogEntry(currentUser.uid, todayStr, slot, "student", historyStatus);
+
       setSuccess(`Marked ${slot} slot as: ${status} for today.`);
       
       // Reload student details
@@ -194,6 +220,7 @@ export default function StudentDashboard() {
   // Nav tabs definition
   const tabs = [
     { id: "menu", label: "Tiffins", icon: Utensils },
+    { id: "history", label: "History", icon: Calendar },
     { id: "payments", label: "My Payments", icon: CreditCard },
     { id: "profile", label: "Profile", icon: User }
   ];
@@ -209,6 +236,7 @@ export default function StudentDashboard() {
           <span className="panel-subtitle">PARADISE TIFFIN</span>
           <h2 className="panel-title">
             {activeTab === "menu" && "Student Dashboard"}
+            {activeTab === "history" && "Tiffin History"}
             {activeTab === "payments" && "My Payments"}
             {activeTab === "profile" && "Student Profile"}
           </h2>
@@ -328,6 +356,131 @@ export default function StudentDashboard() {
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* HISTORY TAB */}
+            {activeTab === "history" && studentDetails && (
+              <div className="flex flex-col gap-4 animate-fade-in">
+                <div className="card flex flex-col gap-3">
+                  <div className="flex justify-between items-center border-b pb-2 mb-1" style={{ borderColor: "var(--border-color)" }}>
+                    <h4 className="font-bold text-xs uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>
+                      📅 My Tiffin History
+                    </h4>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const [y, m] = historyMonth.split("-").map(Number);
+                          let newY = y, newM = m - 1;
+                          if (newM < 1) { newM = 12; newY -= 1; }
+                          setHistoryMonth(`${newY}-${String(newM).padStart(2, "0")}`);
+                        }}
+                        className="btn btn-outline py-1 px-2 text-xs"
+                        style={{ cursor: "pointer" }}
+                      >
+                        ←
+                      </button>
+                      <span className="text-xs font-bold" style={{ color: "var(--text-primary)", minWidth: "90px", textAlign: "center" }}>
+                        {new Date(historyMonth + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const [y, m] = historyMonth.split("-").map(Number);
+                          let newY = y, newM = m + 1;
+                          if (newM > 12) { newM = 1; newY += 1; }
+                          setHistoryMonth(`${newY}-${String(newM).padStart(2, "0")}`);
+                        }}
+                        className="btn btn-outline py-1 px-2 text-xs"
+                        style={{ cursor: "pointer" }}
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Legend */}
+                  <div className="flex gap-3 flex-wrap text-[10px]" style={{ color: "var(--text-muted)" }}>
+                    <span>🟢 Owner Sent</span>
+                    <span>🔴 Owner Not Sent</span>
+                    <span>✅ You Received</span>
+                    <span>🚫 You Took Day Off</span>
+                  </div>
+
+                  {/* Calendar Grid */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+                    {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+                      <div key={d} className="text-center text-[9px] font-bold" style={{ color: "var(--text-muted)" }}>
+                        {d}
+                      </div>
+                    ))}
+                    {(() => {
+                      const [year, month] = historyMonth.split("-").map(Number);
+                      const firstDay = new Date(year, month - 1, 1).getDay();
+                      const daysInMonth = new Date(year, month, 0).getDate();
+                      const cells = [];
+
+                      for (let i = 0; i < firstDay; i++) {
+                        cells.push(<div key={`empty-${i}`} />);
+                      }
+
+                      for (let day = 1; day <= daysInMonth; day++) {
+                        const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                        const entry = tiffinHistory.find((h) => h.date === dateStr);
+
+                        const ownerM = entry?.morningOwnerStatus;
+                        const ownerE = entry?.eveningOwnerStatus;
+                        const studM = entry?.morningStudentStatus;
+                        const studE = entry?.eveningStudentStatus;
+
+                        const hasData = ownerM || ownerE || studM || studE;
+
+                        cells.push(
+                          <div
+                            key={dateStr}
+                            className="flex flex-col items-center justify-center"
+                            style={{
+                              aspectRatio: "1",
+                              borderRadius: "6px",
+                              backgroundColor: hasData ? "var(--card-bg, #F5E6D3)" : "transparent",
+                              border: "1px solid var(--border-color)",
+                              fontSize: "9px",
+                              padding: "2px"
+                            }}
+                          >
+                            <span style={{ fontWeight: "700", color: "var(--text-primary)" }}>{day}</span>
+                            {hasData && (
+                              <div style={{ display: "flex", gap: "1px", fontSize: "7px", lineHeight: "1" }}>
+                                <span>{ownerM === "sent" ? "🟢" : ownerM === "not_sent" ? "🔴" : ""}{studM === "received" ? "✅" : studM === "dayoff" ? "🚫" : ""}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      return cells;
+                    })()}
+                  </div>
+
+                  {/* Simple List Backup View */}
+                  <div className="mt-2" style={{ maxHeight: "220px", overflowY: "auto" }}>
+                    {tiffinHistory.length === 0 ? (
+                      <p className="text-xs text-center py-3" style={{ color: "var(--text-muted)", fontStyle: "italic" }}>
+                        No tiffin records for this month yet.
+                      </p>
+                    ) : (
+                      [...tiffinHistory].sort((a, b) => a.date.localeCompare(b.date)).map((entry) => (
+                        <div key={entry.date} className="flex justify-between items-center text-[10px] border-b py-1.5" style={{ borderColor: "var(--border-color)" }}>
+                          <span className="font-bold" style={{ color: "var(--text-primary)" }}>{entry.date}</span>
+                          <span style={{ color: "var(--text-muted)" }}>
+                            {entry.morningOwnerStatus && `🌅 ${entry.morningOwnerStatus === "sent" ? "Sent" : "Not Sent"}/${entry.morningStudentStatus === "received" ? "Received" : entry.morningStudentStatus === "dayoff" ? "Day Off" : "—"}`}
+                            {entry.eveningOwnerStatus && `  🌆 ${entry.eveningOwnerStatus === "sent" ? "Sent" : "Not Sent"}/${entry.eveningStudentStatus === "received" ? "Received" : entry.eveningStudentStatus === "dayoff" ? "Day Off" : "—"}`}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
