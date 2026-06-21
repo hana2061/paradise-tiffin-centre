@@ -2,8 +2,11 @@ import admin from "firebase-admin";
 
 // Initialize Firebase Admin only once (serverless functions can reuse warm instances)
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-  admin.initializeApp({
+console.log("DEBUG - env var exists:", !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+console.log("DEBUG - env var length:", process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.length || 0);
+console.log("DEBUG - env var first 20 chars:", process.env.FIREBASE_SERVICE_ACCOUNT_KEY?.substring(0, 20) || "EMPTY");
+
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);  admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
   });
 }
